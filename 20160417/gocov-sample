@@ -1,0 +1,3 @@
+PACKAGES = $(shell go list ./... |grep -v vendor)
+gocov test $(PACKAGES) | gocov-html > ./coverage.html
+open ./coverage.html

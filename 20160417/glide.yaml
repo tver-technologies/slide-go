@@ -1,0 +1,3 @@
+- package: hoge.com/inagaki/fuga-libs
+  repo: git@hoge.com:inagaki/fuga-libs.git
+  vcs: git

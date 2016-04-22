@@ -1,0 +1,207 @@
+HAROiDでのGo開発
+第3回 関西golang勉強会
+
+2016/04/17
+
+Takanori Inagaki
+Server Side Engineer, HAROiD.Inc.
+
+* 自己紹介
+
+- Takanori Inagaki [[https://twitter.com/ingtk120][@ingtk120]] / [[https://github.com/ingtk][@ingtk]]
+- HAROiD Inc.
+- Vim, Go, Node.js, Python
+- 親バカ
+
+* テレビ連動プラットフォームとは
+
+* テレビ連動の特徴
+
+- 一瞬に人を集める
+- 関西地区 5 % の世帯視聴率 ：36万世帯
+（関東地区 : 91万世帯）
+http://www.videor.co.jp/rating/wh/13.htm
+
+.image dashboard.png
+
+* テレビ連動の要求
+
+- 高負荷（秒間数万リクエスト）
+- リアルタイム性
+- 信頼性
+
+* HAROiDの構成
+
+.image platform.png
+
+* どこに使ってる？
+
+- 高負荷が前提となるWEB API
+- プラットフォームのサブシステムの規模をコントロールするWEB API
+- 運用管理CLIツール
+
+今回はGoで開発を進めるときにふと足を止めがちになる問題について、その解決策となる書き方やツール、ライブラリの紹介をします。
+
+* ディレクトリ構成
+
+* ディレクトリ構成
+
+開発するときのディレクトリ構成。
+
+	app           ... アプリケーションルート
+	├── api       ... URL、CLIのサブコマンドなどに1対1で対応する関数群
+	├── config    ... 環境ごとの設定ファイル
+	├── datastore ... データベースの検索更新
+	├── entity    ... 外部データストアのスキーマなどに対応する構造体郡
+	├── fixture   ... テストフィクスチャ
+	├── mock      ... モック
+	├── service   ... ビジネスロジック
+	└── vendor    ... サードパーティライブラリ
+
+* 環境ごとの設定・初期化
+
+* 環境ごとの初期化
+
+環境によってことなる初期化処理。
+たとえば、
+
+- 環境ごとに異なる初期化処理
+- 後述するモックを使用する場合。（テスト環境だけモックにする、など）
+
+※ただし、環境変数で対応可能なものは極力環境変数にしている。（webサーバの起動ポートなど）
+
+* 方法
+ダックタイピングで異なる処理を記述する。
+
+* コード
+
+.code env.go
+
+* モック
+
+* モック
+
+- 関数の引数に特定の値を渡していることを検証したい場合
+- ローカル環境での開発ではテストをカジュアルに実行するので、外部のAPIは叩きたくない場合
+
+たとえば、
+
+- 一回の実行に時間がかかる
+- APIの実行回数制限とかがあったりする
+- そもそも叩けない
+
+などなど
+
+* 方法
+
+- [[https://github.com/golang/mock][GoMock]]
+
+コマンドでインターフェースのモックを生成。
+
+.code mockcmd.sh
+
+* コード
+
+モックを使う
+
+.code mock.go
+
+* エラースタックトレース
+
+* エラースタックトレース
+
+- Web APIなどでは、コード内でerrがでてもpanicにしたくない
+- ログにはエラースタックトレースを記録したい
+- goの標準のエラーはスタックトレースを内包していないため、呼び出し元からではエラーの発生元がわからない
+
+* 方法
+
+- [[https://github.com/go-errors/errors][go-errors/errors]]
+- 標準のerrorをラップしてスタックトレースを内包するライブラリ
+
+* コード
+
+- errを返す
+
+.code err.go
+
+- 呼び出し元でスタックトレースを出力
+
+.code errstack.go
+
+* パッケージ管理
+
+* パッケージ管理
+
+- 説明不要のGOPATH問題
+- go1.6からvendoringが正式に導入されてプロジェクトルートのvendorが読み込めるようになった
+- どのパッケージマネージャを使うか？
+- ベンダーロックインは？
+
+* 何を使う？
+
+- 有名なのは[[https://github.com/tools/godep][godep]]、[[https://github.com/Masterminds/glide][glide]]
+- 今はglideを使用している
+
+* glide
+
+よく使うコマンド
+
+	glide create  # 現在のパッケージ情報を元にglide.yamlを生成
+	glide get     # リモートから新規取得し、glide.yamlに追加
+	glide install # glide.lockの情報をもとにインストール
+	glide up      # 最新のバージョンに更新
+
+- 普通のGitリポジトリも対応
+
+.code glide.yaml
+
+* ベンダーロックイン
+
+- vendorディレクトリをコミットに含める
+- これをやっているリポジトリは結構多い(Hashicorp全般、docker、glide ...)
+- vendor配下の.gitは消す
+	find ./vendor -name ".git" | xargs rm -rf
+
+* コードカバレッジ
+
+* コードカバレッジ
+
+少人数での開発ではやはりテストは重要で、カバレッジも利用している
+
+- [[https://github.com/axw/gocov][gocov]]
+- [[http://gopkg.in/matm/v1/gocov-html][gocov-html]]
+
+使い方（以下をMakefileに定義）
+
+.code gocov-sample
+
+* デバッガ
+
+* デバッガ
+
+- [[https://github.com/derekparker/delve][delve]]
+- ブレークポイント設定して、ステップ実行したり、変数見たり。
+- 起動済みのプロセスにアタッチしてデバッグもできる。
+
+デモします
+
+* プロファイラ
+
+* プロファイラ
+
+- [[profile][https://github.com/pkg/profile]]
+- 標準のpprofを使いやすくしたもの
+
+* コード
+
+.code profile.go
+
+デモします
+
+* 最後に
+
+エンジニア募集中!
+https://www.wantedly.com/companies/haroid/projects
+
+* ご清聴ありがとうごさいました！
